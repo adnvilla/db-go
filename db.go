@@ -38,6 +38,14 @@ func getConnection(config Config) *DBConn {
 		}
 
 		if len(config.ReplicasDSN) == 0 {
+			// Apply Datadog tracing if enabled
+			if config.EnableTracing {
+				db, err = EnableTracing(db, config)
+				if err != nil {
+					conn.Instance, conn.Error = db, err
+					return
+				}
+			}
 			conn.Instance, conn.Error = db, err
 			return
 		}
@@ -56,6 +64,19 @@ func getConnection(config Config) *DBConn {
 		}
 
 		err = db.Use(dbresolver.Register(dbRresolver))
+		if err != nil {
+			conn.Instance, conn.Error = db, err
+			return
+		}
+
+		// Apply Datadog tracing if enabled
+		if config.EnableTracing {
+			db, err = EnableTracing(db, config)
+			if err != nil {
+				conn.Instance, conn.Error = db, err
+				return
+			}
+		}
 
 		conn.Instance, conn.Error = db, err
 	})
