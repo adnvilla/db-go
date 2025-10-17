@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/adnvilla/db-go/compare/v1.0.0...v1.0.1) (2025-10-17)
+
+### Bug Fixes
+
+* update logger-go and datadog-agent dependencies to latest versions ([#5](https://github.com/adnvilla/db-go/issues/5)) ([fb16f1b](https://github.com/adnvilla/db-go/commit/fb16f1b7841dbdb071d6c5ad60926908a22e3686))
+
 ## 1.0.0 (2025-10-14)
 
 ### Features
