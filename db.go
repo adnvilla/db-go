@@ -8,6 +8,7 @@ import (
 	"gorm.io/plugin/dbresolver"
 )
 
+// DBConn wraps a GORM database connection and any error from initialization.
 type DBConn struct {
 	Instance *gorm.DB
 	Error    error
@@ -16,9 +17,11 @@ type DBConn struct {
 var (
 	conn          DBConn
 	dbConnOnce    sync.Once
+	connMu        sync.RWMutex
 	GetConnection = getConnection
 )
 
+// UseDefaultConnection restores GetConnection to the default implementation.
 func UseDefaultConnection() {
 	GetConnection = getConnection
 }
@@ -33,7 +36,9 @@ func getConnection(config Config) *DBConn {
 		// Principal or Write/Source
 		db, err := gorm.Open(postgres.Open(config.PrimaryDSN), cfg)
 		if err != nil {
+			connMu.Lock()
 			conn.Instance, conn.Error = db, err
+			connMu.Unlock()
 			return
 		}
 
@@ -42,11 +47,15 @@ func getConnection(config Config) *DBConn {
 			if config.EnableTracing {
 				db, err = EnableTracing(db, config)
 				if err != nil {
+					connMu.Lock()
 					conn.Instance, conn.Error = db, err
+					connMu.Unlock()
 					return
 				}
 			}
+			connMu.Lock()
 			conn.Instance, conn.Error = db, err
+			connMu.Unlock()
 			return
 		}
 
@@ -56,8 +65,6 @@ func getConnection(config Config) *DBConn {
 		}
 
 		dbRresolver := dbresolver.Config{
-			// Principal or Write/Source
-			Sources: []gorm.Dialector{postgres.Open(config.PrimaryDSN)},
 			// Read Replicas
 			Replicas: replicas,
 			Policy:   dbresolver.RandomPolicy{},
@@ -65,7 +72,9 @@ func getConnection(config Config) *DBConn {
 
 		err = db.Use(dbresolver.Register(dbRresolver))
 		if err != nil {
+			connMu.Lock()
 			conn.Instance, conn.Error = db, err
+			connMu.Unlock()
 			return
 		}
 
@@ -73,16 +82,36 @@ func getConnection(config Config) *DBConn {
 		if config.EnableTracing {
 			db, err = EnableTracing(db, config)
 			if err != nil {
+				connMu.Lock()
 				conn.Instance, conn.Error = db, err
+				connMu.Unlock()
 				return
 			}
 		}
 
+		connMu.Lock()
 		conn.Instance, conn.Error = db, err
+		connMu.Unlock()
 	})
-	return &conn
+	connMu.RLock()
+	result := conn
+	connMu.RUnlock()
+	return &result
 }
 
+// ResetConnection closes the underlying database connection and resets the singleton,
+// allowing a new connection to be established on the next call to GetConnection.
 func ResetConnection() {
+	connMu.Lock()
+	defer connMu.Unlock()
+	if conn.Instance != nil {
+		func() {
+			defer func() { recover() }()
+			if sqlDB, err := conn.Instance.DB(); err == nil && sqlDB != nil {
+				sqlDB.Close()
+			}
+		}()
+	}
+	conn = DBConn{}
 	dbConnOnce = sync.Once{}
 }

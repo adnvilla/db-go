@@ -13,18 +13,19 @@ func TestConfig_ZeroValue(t *testing.T) {
 	assert.Empty(t, cfg.ReplicasDSN)
 	assert.False(t, cfg.EnableTracing)
 	assert.Empty(t, cfg.TracingServiceName)
-	assert.Zero(t, cfg.TracingAnalyticsRate)
+	assert.Nil(t, cfg.TracingAnalyticsRate)
 	assert.Nil(t, cfg.TracingErrorCheck)
 }
 
 func TestConfig_WithFields(t *testing.T) {
 	errCheck := func(err error) bool { return err != nil }
+	rate := 0.5
 	cfg := Config{
 		PrimaryDSN:          "host=localhost dbname=test",
 		ReplicasDSN:         []string{"host=replica1", "host=replica2"},
 		EnableTracing:       true,
 		TracingServiceName:  "my-service",
-		TracingAnalyticsRate: 0.5,
+		TracingAnalyticsRate: &rate,
 		TracingErrorCheck:   errCheck,
 	}
 
@@ -34,6 +35,7 @@ func TestConfig_WithFields(t *testing.T) {
 	assert.Equal(t, "host=replica2", cfg.ReplicasDSN[1])
 	assert.True(t, cfg.EnableTracing)
 	assert.Equal(t, "my-service", cfg.TracingServiceName)
-	assert.Equal(t, 0.5, cfg.TracingAnalyticsRate)
+	assert.NotNil(t, cfg.TracingAnalyticsRate)
+	assert.Equal(t, 0.5, *cfg.TracingAnalyticsRate)
 	assert.NotNil(t, cfg.TracingErrorCheck)
 }

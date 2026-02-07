@@ -9,9 +9,10 @@ import (
 )
 
 func TestSetAndGetFromContext(t *testing.T) {
-	origConn := conn
-	defer func() { conn = origConn }()
+	saveAndRestoreConn(t)
+	connMu.Lock()
 	conn = DBConn{}
+	connMu.Unlock()
 
 	db := &gorm.DB{}
 	ctx := SetFromContext(context.Background(), db)
@@ -21,31 +22,34 @@ func TestSetAndGetFromContext(t *testing.T) {
 }
 
 func TestGetFromContext_FallsBackToGlobalConn(t *testing.T) {
-	origConn := conn
-	defer func() { conn = origConn }()
+	saveAndRestoreConn(t)
 
 	globalDB := &gorm.DB{}
+	connMu.Lock()
 	conn = DBConn{Instance: globalDB}
+	connMu.Unlock()
 
 	result := GetFromContext(context.Background())
 	assert.Equal(t, globalDB, result)
 }
 
 func TestGetFromContext_ReturnsNilWhenNothingAvailable(t *testing.T) {
-	origConn := conn
-	defer func() { conn = origConn }()
+	saveAndRestoreConn(t)
+	connMu.Lock()
 	conn = DBConn{}
+	connMu.Unlock()
 
 	result := GetFromContext(context.Background())
 	assert.Nil(t, result)
 }
 
 func TestGetFromContext_ContextOverridesGlobal(t *testing.T) {
-	origConn := conn
-	defer func() { conn = origConn }()
+	saveAndRestoreConn(t)
 
 	globalDB := &gorm.DB{Config: &gorm.Config{SkipDefaultTransaction: true}}
+	connMu.Lock()
 	conn = DBConn{Instance: globalDB}
+	connMu.Unlock()
 
 	contextDB := &gorm.DB{Config: &gorm.Config{SkipDefaultTransaction: false}}
 	ctx := SetFromContext(context.Background(), contextDB)

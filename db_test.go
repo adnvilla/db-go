@@ -5,9 +5,24 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+func saveAndRestoreConn(t *testing.T) {
+	t.Helper()
+	connMu.RLock()
+	origConn := conn
+	connMu.RUnlock()
+	t.Cleanup(func() {
+		connMu.Lock()
+		conn = origConn
+		connMu.Unlock()
+		ResetConnection()
+	})
+}
 
 func TestGetConnection_MockReturnsDBConn(t *testing.T) {
 	origGetConn := GetConnection
@@ -40,17 +55,17 @@ func TestGetConnection_MockReturnsError(t *testing.T) {
 }
 
 func TestResetConnection_ClearsSyncOnce(t *testing.T) {
-	origConn := conn
-	defer func() {
-		conn = origConn
-		ResetConnection()
-	}()
+	saveAndRestoreConn(t)
 
 	// Mark the Once as used
 	dbConnOnce.Do(func() {
+		connMu.Lock()
 		conn = DBConn{Instance: &gorm.DB{}, Error: nil}
+		connMu.Unlock()
 	})
+	connMu.RLock()
 	assert.NotNil(t, conn.Instance)
+	connMu.RUnlock()
 
 	ResetConnection()
 
@@ -60,6 +75,32 @@ func TestResetConnection_ClearsSyncOnce(t *testing.T) {
 		executed = true
 	})
 	assert.True(t, executed, "sync.Once should execute again after ResetConnection")
+}
+
+func TestResetConnection_ClosesUnderlyingDB(t *testing.T) {
+	saveAndRestoreConn(t)
+
+	mockDB, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		Conn: mockDB,
+	}), &gorm.Config{})
+	assert.NoError(t, err)
+
+	connMu.Lock()
+	conn = DBConn{Instance: db, Error: nil}
+	connMu.Unlock()
+
+	mock.ExpectClose()
+	ResetConnection()
+
+	assert.NoError(t, mock.ExpectationsWereMet())
+
+	connMu.RLock()
+	assert.Nil(t, conn.Instance)
+	assert.NoError(t, conn.Error)
+	connMu.RUnlock()
 }
 
 func TestUseDefaultConnection_RestoresDefault(t *testing.T) {
@@ -104,16 +145,14 @@ func TestDBConn_Struct(t *testing.T) {
 }
 
 func TestGetConnection_Singleton(t *testing.T) {
-	origConn := conn
+	saveAndRestoreConn(t)
 	origGetConn := GetConnection
-	defer func() {
-		conn = origConn
-		GetConnection = origGetConn
-		ResetConnection()
-	}()
+	defer func() { GetConnection = origGetConn }()
 
 	ResetConnection()
+	connMu.Lock()
 	conn = DBConn{}
+	connMu.Unlock()
 
 	callCount := 0
 	var mu sync.Mutex
@@ -122,9 +161,14 @@ func TestGetConnection_Singleton(t *testing.T) {
 			mu.Lock()
 			callCount++
 			mu.Unlock()
+			connMu.Lock()
 			conn = DBConn{Instance: &gorm.DB{}, Error: nil}
+			connMu.Unlock()
 		})
-		return &conn
+		connMu.RLock()
+		result := conn
+		connMu.RUnlock()
+		return &result
 	}
 
 	// Call twice - the inner function should only execute once

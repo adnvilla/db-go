@@ -43,7 +43,7 @@ func WithTracingServiceName(serviceName string) func(*Config) *Config {
 //	config = *dbgo.WithTracingAnalyticsRate(1.0)(&config)
 func WithTracingAnalyticsRate(rate float64) func(*Config) *Config {
 	return func(cfg *Config) *Config {
-		cfg.TracingAnalyticsRate = rate
+		cfg.TracingAnalyticsRate = &rate
 		return cfg
 	}
 }
@@ -79,8 +79,8 @@ func EnableTracing(db *gorm.DB, cfg Config) (*gorm.DB, error) {
 		opts = append(opts, gormtrace.WithService(cfg.TracingServiceName))
 	}
 
-	if cfg.TracingAnalyticsRate >= 0 {
-		opts = append(opts, gormtrace.WithAnalyticsRate(cfg.TracingAnalyticsRate))
+	if cfg.TracingAnalyticsRate != nil {
+		opts = append(opts, gormtrace.WithAnalyticsRate(*cfg.TracingAnalyticsRate))
 	}
 
 	if cfg.TracingErrorCheck != nil {

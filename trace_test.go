@@ -53,7 +53,8 @@ func TestWithTracingAnalyticsRate(t *testing.T) {
 			optFn := WithTracingAnalyticsRate(tt.rate)
 			result := optFn(cfg)
 
-			assert.Equal(t, tt.rate, result.TracingAnalyticsRate)
+			assert.NotNil(t, result.TracingAnalyticsRate)
+			assert.Equal(t, tt.rate, *result.TracingAnalyticsRate)
 		})
 	}
 }
@@ -78,7 +79,8 @@ func TestWithTracingOptions_Chaining(t *testing.T) {
 
 	assert.True(t, cfg.EnableTracing)
 	assert.Equal(t, "chained-service", cfg.TracingServiceName)
-	assert.Equal(t, 0.75, cfg.TracingAnalyticsRate)
+	assert.NotNil(t, cfg.TracingAnalyticsRate)
+	assert.Equal(t, 0.75, *cfg.TracingAnalyticsRate)
 	assert.NotNil(t, cfg.TracingErrorCheck)
 	assert.Equal(t, "host=localhost", cfg.PrimaryDSN)
 }

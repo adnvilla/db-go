@@ -37,11 +37,12 @@ func TestUnitOfWork_Type(t *testing.T) {
 }
 
 func TestWithTransaction_Success(t *testing.T) {
-	origConn := conn
-	defer func() { conn = origConn }()
+	saveAndRestoreConn(t)
 
 	db, mock := newMockDB(t)
+	connMu.Lock()
 	conn = DBConn{Instance: db}
+	connMu.Unlock()
 
 	mock.ExpectBegin()
 	mock.ExpectCommit()
@@ -56,11 +57,12 @@ func TestWithTransaction_Success(t *testing.T) {
 }
 
 func TestWithTransaction_FnReturnsError(t *testing.T) {
-	origConn := conn
-	defer func() { conn = origConn }()
+	saveAndRestoreConn(t)
 
 	db, mock := newMockDB(t)
+	connMu.Lock()
 	conn = DBConn{Instance: db}
+	connMu.Unlock()
 
 	mock.ExpectBegin()
 	mock.ExpectRollback()
@@ -76,11 +78,12 @@ func TestWithTransaction_FnReturnsError(t *testing.T) {
 }
 
 func TestWithTransaction_Panic(t *testing.T) {
-	origConn := conn
-	defer func() { conn = origConn }()
+	saveAndRestoreConn(t)
 
 	db, mock := newMockDB(t)
+	connMu.Lock()
 	conn = DBConn{Instance: db}
+	connMu.Unlock()
 
 	mock.ExpectBegin()
 	mock.ExpectRollback()
@@ -92,5 +95,67 @@ func TestWithTransaction_Panic(t *testing.T) {
 		})
 	})
 
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestWithTransaction_NilDB_ReturnsError(t *testing.T) {
+	saveAndRestoreConn(t)
+
+	connMu.Lock()
+	conn = DBConn{}
+	connMu.Unlock()
+
+	ctx := context.Background()
+	err := WithTransaction(ctx, func(ctx context.Context) error {
+		return nil
+	})
+
+	assert.ErrorIs(t, err, ErrNoDatabase)
+}
+
+func TestWithTransaction_NestedReusesTransaction(t *testing.T) {
+	saveAndRestoreConn(t)
+
+	db, mock := newMockDB(t)
+	connMu.Lock()
+	conn = DBConn{Instance: db}
+	connMu.Unlock()
+
+	// Only one BEGIN/COMMIT pair — the nested call should reuse the TX
+	mock.ExpectBegin()
+	mock.ExpectCommit()
+
+	ctx := context.Background()
+	err := WithTransaction(ctx, func(ctx context.Context) error {
+		// This inner call should detect the active TX and not begin a new one
+		return WithTransaction(ctx, func(ctx context.Context) error {
+			return nil
+		})
+	})
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestWithTransaction_NestedPropagatesError(t *testing.T) {
+	saveAndRestoreConn(t)
+
+	db, mock := newMockDB(t)
+	connMu.Lock()
+	conn = DBConn{Instance: db}
+	connMu.Unlock()
+
+	mock.ExpectBegin()
+	mock.ExpectRollback()
+
+	innerErr := errors.New("inner error")
+	ctx := context.Background()
+	err := WithTransaction(ctx, func(ctx context.Context) error {
+		return WithTransaction(ctx, func(ctx context.Context) error {
+			return innerErr
+		})
+	})
+
+	assert.ErrorIs(t, err, innerErr)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }

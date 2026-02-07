@@ -16,8 +16,11 @@ func GetFromContext(ctx context.Context) *gorm.DB {
 		return db
 	}
 
-	if conn.Instance != nil {
-		return conn.Instance
+	connMu.RLock()
+	instance := conn.Instance
+	connMu.RUnlock()
+	if instance != nil {
+		return instance
 	}
 
 	logger.Error(ctx, "No GORM DB instance found in context or default connection.")
