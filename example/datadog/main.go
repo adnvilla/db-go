@@ -92,7 +92,7 @@ func main() {
 	defer span.Finish()
 
 	// Use the context with the span for database operations
-	db := dbgo.WithContext(ctx, dbConn.Instance)
+	ctx, db := dbgo.WithContext(ctx, dbConn.Instance)
 
 	// Create a user
 	user := User{Name: "John Doe"}

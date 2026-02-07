@@ -94,7 +94,7 @@ func TestEnableTracing_WhenDisabled(t *testing.T) {
 	assert.Equal(t, db, result, "should return the same db when tracing is disabled")
 }
 
-func TestWithContext_WrapsDB(t *testing.T) {
+func TestWithContext_WrapsDBAndSetsContext(t *testing.T) {
 	mockDB, _, err := sqlmock.New()
 	assert.NoError(t, err)
 	defer mockDB.Close()
@@ -105,6 +105,11 @@ func TestWithContext_WrapsDB(t *testing.T) {
 	assert.NoError(t, err)
 
 	ctx := context.Background()
-	result := WithContext(ctx, db)
+	newCtx, result := WithContext(ctx, db)
 	assert.NotNil(t, result)
+	assert.NotNil(t, newCtx)
+
+	// Verify the DB is retrievable from the returned context
+	fromCtx := GetFromContext(newCtx)
+	assert.Same(t, result, fromCtx)
 }

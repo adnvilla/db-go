@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	logger "github.com/adnvilla/logger-go"
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"gorm.io/gorm"
 	"gorm.io/plugin/dbresolver"
 )
@@ -23,6 +24,7 @@ func isTransaction(db *gorm.DB) bool {
 // WithTransaction executes the given UnitOfWork within a database transaction.
 // If the context already contains an active transaction, it reuses it instead of nesting.
 // On panic, the transaction is rolled back and the panic is re-thrown.
+// When tracing is enabled, a "db.transaction" span is automatically created.
 func WithTransaction(ctx context.Context, fn UnitOfWork) (err error) {
 	dbInstance := GetFromContext(ctx)
 	if dbInstance == nil {
@@ -31,6 +33,23 @@ func WithTransaction(ctx context.Context, fn UnitOfWork) (err error) {
 
 	if isTransaction(dbInstance) {
 		return fn(ctx)
+	}
+
+	cfg := GetActiveConfig()
+	if cfg.EnableTracing {
+		var span *tracer.Span
+		opts := []tracer.StartSpanOption{}
+		if cfg.TracingServiceName != "" {
+			opts = append(opts, tracer.ServiceName(cfg.TracingServiceName))
+		}
+		span, ctx = tracer.StartSpanFromContext(ctx, "db.transaction", opts...)
+		defer func() {
+			if err != nil {
+				span.SetTag("error", true)
+				span.SetTag("error.message", err.Error())
+			}
+			span.Finish()
+		}()
 	}
 
 	db := dbInstance.

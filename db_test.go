@@ -144,6 +144,62 @@ func TestDBConn_Struct(t *testing.T) {
 	})
 }
 
+func TestGetActiveConfig_ZeroBeforeConnection(t *testing.T) {
+	saveAndRestoreConn(t)
+	ResetConnection()
+
+	cfg := GetActiveConfig()
+	assert.Empty(t, cfg.PrimaryDSN)
+	assert.False(t, cfg.EnableTracing)
+}
+
+func TestGetActiveConfig_StoredAfterConnection(t *testing.T) {
+	saveAndRestoreConn(t)
+	origGetConn := GetConnection
+	defer func() { GetConnection = origGetConn }()
+
+	ResetConnection()
+
+	GetConnection = func(config Config) *DBConn {
+		dbConnOnce.Do(func() {
+			connMu.Lock()
+			activeConfig = config
+			conn = DBConn{Instance: &gorm.DB{}, Error: nil}
+			connMu.Unlock()
+		})
+		connMu.RLock()
+		result := conn
+		connMu.RUnlock()
+		return &result
+	}
+
+	inputCfg := Config{
+		PrimaryDSN:        "host=localhost dbname=test",
+		EnableTracing:     true,
+		TracingServiceName: "test-service",
+	}
+	GetConnection(inputCfg)
+
+	stored := GetActiveConfig()
+	assert.Equal(t, "host=localhost dbname=test", stored.PrimaryDSN)
+	assert.True(t, stored.EnableTracing)
+	assert.Equal(t, "test-service", stored.TracingServiceName)
+}
+
+func TestGetActiveConfig_ResetClearsConfig(t *testing.T) {
+	saveAndRestoreConn(t)
+
+	connMu.Lock()
+	activeConfig = Config{PrimaryDSN: "some-dsn", EnableTracing: true}
+	connMu.Unlock()
+
+	ResetConnection()
+
+	cfg := GetActiveConfig()
+	assert.Empty(t, cfg.PrimaryDSN)
+	assert.False(t, cfg.EnableTracing)
+}
+
 func TestGetConnection_Singleton(t *testing.T) {
 	saveAndRestoreConn(t)
 	origGetConn := GetConnection

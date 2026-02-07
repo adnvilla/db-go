@@ -137,6 +137,70 @@ func TestWithTransaction_NestedReusesTransaction(t *testing.T) {
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestWithTransaction_TracingEnabled_CreatesSpan(t *testing.T) {
+	saveAndRestoreConn(t)
+
+	db, mock := newMockDB(t)
+	connMu.Lock()
+	conn = DBConn{Instance: db}
+	activeConfig = Config{EnableTracing: true, TracingServiceName: "test-svc"}
+	connMu.Unlock()
+
+	mock.ExpectBegin()
+	mock.ExpectCommit()
+
+	ctx := context.Background()
+	err := WithTransaction(ctx, func(ctx context.Context) error {
+		return nil
+	})
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestWithTransaction_TracingDisabled_NoSpan(t *testing.T) {
+	saveAndRestoreConn(t)
+
+	db, mock := newMockDB(t)
+	connMu.Lock()
+	conn = DBConn{Instance: db}
+	activeConfig = Config{EnableTracing: false}
+	connMu.Unlock()
+
+	mock.ExpectBegin()
+	mock.ExpectCommit()
+
+	ctx := context.Background()
+	err := WithTransaction(ctx, func(ctx context.Context) error {
+		return nil
+	})
+
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestWithTransaction_TracingEnabled_ErrorSetsSpanTags(t *testing.T) {
+	saveAndRestoreConn(t)
+
+	db, mock := newMockDB(t)
+	connMu.Lock()
+	conn = DBConn{Instance: db}
+	activeConfig = Config{EnableTracing: true, TracingServiceName: "test-svc"}
+	connMu.Unlock()
+
+	mock.ExpectBegin()
+	mock.ExpectRollback()
+
+	fnErr := errors.New("tracing error")
+	ctx := context.Background()
+	err := WithTransaction(ctx, func(ctx context.Context) error {
+		return fnErr
+	})
+
+	assert.ErrorIs(t, err, fnErr)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestWithTransaction_NestedPropagatesError(t *testing.T) {
 	saveAndRestoreConn(t)
 
