@@ -1,3 +1,15 @@
+## [2.0.0](https://github.com/adnvilla/db-go/compare/v1.0.1...v2.0.0) (2026-02-07)
+
+### ⚠ BREAKING CHANGES
+
+* Config.TracingAnalyticsRate changed from float64 to *float64
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+### Bug Fixes
+
+* resolve race conditions, connection leak, and transaction safety ([#7](https://github.com/adnvilla/db-go/issues/7)) ([dbdbbf4](https://github.com/adnvilla/db-go/commit/dbdbbf47e9ab3fcbfd6ec716c80684cc5af75121))
+
 ## [1.0.1](https://github.com/adnvilla/db-go/compare/v1.0.0...v1.0.1) (2025-10-17)
 
 ### Bug Fixes
