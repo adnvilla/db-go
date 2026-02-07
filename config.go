@@ -6,6 +6,6 @@ type Config struct {
 	// Datadog Tracing configuration
 	EnableTracing        bool
 	TracingServiceName   string
-	TracingAnalyticsRate float64
+	TracingAnalyticsRate *float64
 	TracingErrorCheck    func(error) bool
 }
