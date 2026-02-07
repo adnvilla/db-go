@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make *)",
+      "Bash(go build ./...)",
+      "Bash(go test ./...)",
+      "Bash(go vet ./...)",
+      "Bash(go mod tidy)",
+      "Bash(docker compose *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)"
+    ]
+  }
+}
