@@ -95,16 +95,18 @@ func EnableTracing(db *gorm.DB, cfg Config) (*gorm.DB, error) {
 	return db, nil
 }
 
-// WithContext wraps the GORM database connection with a context that might contain
-// a Datadog span, allowing to trace operations within transaction blocks.
-// Use this to propagate tracing context through your application.
+// WithContext wraps the GORM database connection with a context and also stores
+// the DB instance in the context for retrieval via GetFromContext.
+// This combines db.WithContext(ctx) and SetFromContext in a single call,
+// enabling both GORM context propagation and dbgo context-based DB lookup.
 // Example:
 //
 //	span, ctx := tracer.StartSpanFromContext(context.Background(), "my-operation")
 //	defer span.Finish()
-//	db := dbgo.WithContext(ctx, dbConn.Instance)
-func WithContext(ctx context.Context, db *gorm.DB) *gorm.DB {
-	return db.WithContext(ctx)
+//	ctx, db := dbgo.WithContext(ctx, dbConn.Instance)
+func WithContext(ctx context.Context, db *gorm.DB) (context.Context, *gorm.DB) {
+	dbCtx := db.WithContext(ctx)
+	return SetFromContext(ctx, dbCtx), dbCtx
 }
 
 // StartSpan creates a new Datadog span from the given context.

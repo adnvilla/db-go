@@ -16,10 +16,20 @@ type DBConn struct {
 
 var (
 	conn          DBConn
+	activeConfig  Config
 	dbConnOnce    sync.Once
 	connMu        sync.RWMutex
 	GetConnection = getConnection
 )
+
+// GetActiveConfig returns the Config used to establish the current connection.
+// Returns a zero-value Config if no connection has been established yet.
+func GetActiveConfig() Config {
+	connMu.RLock()
+	cfg := activeConfig
+	connMu.RUnlock()
+	return cfg
+}
 
 // UseDefaultConnection restores GetConnection to the default implementation.
 func UseDefaultConnection() {
@@ -28,6 +38,10 @@ func UseDefaultConnection() {
 
 func getConnection(config Config) *DBConn {
 	dbConnOnce.Do(func() {
+		connMu.Lock()
+		activeConfig = config
+		connMu.Unlock()
+
 		var err error
 		cfg := &gorm.Config{
 			PrepareStmt: true,
@@ -113,5 +127,6 @@ func ResetConnection() {
 		}()
 	}
 	conn = DBConn{}
+	activeConfig = Config{}
 	dbConnOnce = sync.Once{}
 }
