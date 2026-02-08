@@ -8,6 +8,13 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	// SpanNameTransaction is the span name used for transaction spans in Datadog.
+	SpanNameTransaction = "db.transaction"
+	// DefaultTracingServiceName is the default service name for tracing when Config.TracingServiceName is empty.
+	DefaultTracingServiceName = "db-go"
+)
+
 // WithTracing enables Datadog tracing for GORM operations.
 // Use this function to enable tracing in your database configuration.
 // Example:
@@ -75,9 +82,11 @@ func EnableTracing(db *gorm.DB, cfg Config) (*gorm.DB, error) {
 
 	var opts []gormtrace.Option
 
-	if cfg.TracingServiceName != "" {
-		opts = append(opts, gormtrace.WithService(cfg.TracingServiceName))
+	svc := cfg.TracingServiceName
+	if svc == "" {
+		svc = DefaultTracingServiceName
 	}
+	opts = append(opts, gormtrace.WithService(svc))
 
 	if cfg.TracingAnalyticsRate != nil {
 		opts = append(opts, gormtrace.WithAnalyticsRate(*cfg.TracingAnalyticsRate))
@@ -110,13 +119,16 @@ func WithContext(ctx context.Context, db *gorm.DB) (context.Context, *gorm.DB) {
 }
 
 // StartSpan creates a new Datadog span from the given context.
-// This can be used to create a parent span before executing database operations.
+// If service is empty, DefaultTracingServiceName is used.
 // Example:
 //
 //	ctx, span := dbgo.StartSpan(context.Background(), "database-operations", "my-service")
 //	defer span.Finish()
 //	db := dbgo.WithContext(ctx, dbConn.Instance)
 func StartSpan(ctx context.Context, name, service string) (context.Context, *tracer.Span) {
+	if service == "" {
+		service = DefaultTracingServiceName
+	}
 	span, ctx := tracer.StartSpanFromContext(ctx, name,
 		tracer.ServiceName(service),
 	)

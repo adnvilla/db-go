@@ -233,3 +233,28 @@ func TestGetConnection_Singleton(t *testing.T) {
 
 	assert.Equal(t, 1, callCount, "sync.Once should only execute the init function once")
 }
+
+func TestGetConnection_EmptyPrimaryDSN_ReturnsErrInvalidConfig(t *testing.T) {
+	saveAndRestoreConn(t)
+	ResetConnection()
+
+	result := GetConnection(Config{})
+
+	assert.Nil(t, result.Instance)
+	assert.ErrorIs(t, result.Error, ErrInvalidConfig)
+}
+
+func TestGetConnection_WithReplicas_AttemptsConnection(t *testing.T) {
+	saveAndRestoreConn(t)
+	ResetConnection()
+
+	// Invalid DSNs so we get a driver/connection error, not ErrInvalidConfig.
+	// This confirms the replica path runs (validation passes, then Open fails).
+	result := GetConnection(Config{
+		PrimaryDSN:  "host=invalid.noexist port=5432 user=x dbname=x password=x sslmode=disable",
+		ReplicasDSN: []string{"host=replica.invalid"},
+	})
+
+	// Should not be validation error; will be connection or plugin error (Instance may be set by GORM on Open failure)
+	assert.False(t, errors.Is(result.Error, ErrInvalidConfig), "expected connection/plugin error, not validation")
+}

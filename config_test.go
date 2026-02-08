@@ -39,3 +39,15 @@ func TestConfig_WithFields(t *testing.T) {
 	assert.Equal(t, 0.5, *cfg.TracingAnalyticsRate)
 	assert.NotNil(t, cfg.TracingErrorCheck)
 }
+
+func TestConfig_Validate_EmptyPrimaryDSN_ReturnsError(t *testing.T) {
+	cfg := Config{}
+	err := cfg.Validate()
+	assert.ErrorIs(t, err, ErrInvalidConfig)
+}
+
+func TestConfig_Validate_Valid_ReturnsNil(t *testing.T) {
+	cfg := Config{PrimaryDSN: "host=localhost dbname=test"}
+	err := cfg.Validate()
+	assert.NoError(t, err)
+}

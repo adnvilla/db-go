@@ -1,6 +1,7 @@
 package dbgo
 
 import (
+	"errors"
 	"sync"
 
 	"gorm.io/driver/postgres"
@@ -8,12 +9,18 @@ import (
 	"gorm.io/plugin/dbresolver"
 )
 
+// ErrInvalidConfig is returned when Config fails validation (e.g. empty PrimaryDSN).
+var ErrInvalidConfig = errors.New("dbgo: invalid config: PrimaryDSN is required")
+
 // DBConn wraps a GORM database connection and any error from initialization.
 type DBConn struct {
 	Instance *gorm.DB
 	Error    error
 }
 
+// GetConnection establishes or returns the singleton GORM connection for the given Config.
+// It is assigned to a package-level variable so it can be overridden in tests (e.g. with a mock);
+// production code should use it as-is. Restore the default with UseDefaultConnection() after tests.
 var (
 	conn          DBConn
 	activeConfig  Config
@@ -37,6 +44,9 @@ func UseDefaultConnection() {
 }
 
 func getConnection(config Config) *DBConn {
+	if err := config.Validate(); err != nil {
+		return &DBConn{Error: err}
+	}
 	dbConnOnce.Do(func() {
 		connMu.Lock()
 		activeConfig = config
@@ -61,6 +71,7 @@ func getConnection(config Config) *DBConn {
 			if config.EnableTracing {
 				db, err = EnableTracing(db, config)
 				if err != nil {
+					// Option B: connection remains usable without tracing; caller gets both Instance and Error.
 					connMu.Lock()
 					conn.Instance, conn.Error = db, err
 					connMu.Unlock()
@@ -78,13 +89,13 @@ func getConnection(config Config) *DBConn {
 			replicas[i] = postgres.Open(r)
 		}
 
-		dbRresolver := dbresolver.Config{
+		dbResolver := dbresolver.Config{
 			// Read Replicas
 			Replicas: replicas,
 			Policy:   dbresolver.RandomPolicy{},
 		}
 
-		err = db.Use(dbresolver.Register(dbRresolver))
+		err = db.Use(dbresolver.Register(dbResolver))
 		if err != nil {
 			connMu.Lock()
 			conn.Instance, conn.Error = db, err
@@ -96,6 +107,7 @@ func getConnection(config Config) *DBConn {
 		if config.EnableTracing {
 			db, err = EnableTracing(db, config)
 			if err != nil {
+				// Option B: connection remains usable without tracing; caller gets both Instance and Error.
 				connMu.Lock()
 				conn.Instance, conn.Error = db, err
 				connMu.Unlock()
