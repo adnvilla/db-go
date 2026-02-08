@@ -1,3 +1,9 @@
+## [2.1.0](https://github.com/adnvilla/db-go/compare/v2.0.0...v2.1.0) (2026-02-08)
+
+### Features
+
+* enhance README and add active config management ([#8](https://github.com/adnvilla/db-go/issues/8)) ([522d73a](https://github.com/adnvilla/db-go/commit/522d73a02ae3718fba6a8cdf1d2742db8e6e47e8))
+
 ## [2.0.0](https://github.com/adnvilla/db-go/compare/v1.0.1...v2.0.0) (2026-02-07)
 
 ### ⚠ BREAKING CHANGES
