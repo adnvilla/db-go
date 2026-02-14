@@ -1,5 +1,7 @@
 package dbgo
 
+import "time"
+
 // Config holds the settings for the database connection and optional features.
 type Config struct {
 	// PrimaryDSN is the data source name for the primary (read-write) PostgreSQL instance. Required.
@@ -8,6 +10,18 @@ type Config struct {
 	// ReplicasDSN is the list of DSNs for read-only replicas. Queries that do not use dbresolver.Write
 	// may be executed against one of these replicas (policy: random). Leave nil or empty for no replicas.
 	ReplicasDSN []string
+
+	// MaxOpenConns sets the maximum number of open connections to the database. Nil uses the driver default.
+	MaxOpenConns *int
+
+	// MaxIdleConns sets the maximum number of connections in the idle connection pool. Nil uses the driver default.
+	MaxIdleConns *int
+
+	// ConnMaxLifetime sets the maximum amount of time a connection may be reused. Nil uses the driver default.
+	ConnMaxLifetime *time.Duration
+
+	// ConnMaxIdleTime sets the maximum amount of time a connection may be idle before being closed. Nil uses the driver default.
+	ConnMaxIdleTime *time.Duration
 
 	// EnableTracing turns on Datadog APM tracing for GORM operations when true.
 	EnableTracing bool

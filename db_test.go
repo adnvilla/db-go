@@ -1,9 +1,11 @@
 package dbgo
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -257,4 +259,68 @@ func TestGetConnection_WithReplicas_AttemptsConnection(t *testing.T) {
 
 	// Should not be validation error; will be connection or plugin error (Instance may be set by GORM on Open failure)
 	assert.False(t, errors.Is(result.Error, ErrInvalidConfig), "expected connection/plugin error, not validation")
+}
+
+func TestApplyPoolConfig_WithPoolConfig_NoError(t *testing.T) {
+	mockDB, _, err := sqlmock.New()
+	assert.NoError(t, err)
+	t.Cleanup(func() { _ = mockDB.Close() })
+
+	db, err := gorm.Open(postgres.New(postgres.Config{Conn: mockDB}), &gorm.Config{})
+	assert.NoError(t, err)
+
+	maxOpen := 25
+	maxIdle := 10
+	maxLifetime := 5 * time.Minute
+	maxIdleTime := 3 * time.Minute
+	cfg := Config{
+		MaxOpenConns:    &maxOpen,
+		MaxIdleConns:    &maxIdle,
+		ConnMaxLifetime: &maxLifetime,
+		ConnMaxIdleTime: &maxIdleTime,
+	}
+	err = applyPoolConfig(db, cfg)
+	assert.NoError(t, err)
+}
+
+func TestApplyPoolConfig_WithNilPoolConfig_NoError(t *testing.T) {
+	mockDB, _, err := sqlmock.New()
+	assert.NoError(t, err)
+	t.Cleanup(func() { _ = mockDB.Close() })
+
+	db, err := gorm.Open(postgres.New(postgres.Config{Conn: mockDB}), &gorm.Config{})
+	assert.NoError(t, err)
+
+	err = applyPoolConfig(db, Config{})
+	assert.NoError(t, err)
+}
+
+func TestPing_NoDB_ReturnsErrNoDatabase(t *testing.T) {
+	saveAndRestoreConn(t)
+	connMu.Lock()
+	conn = DBConn{}
+	connMu.Unlock()
+
+	err := Ping(context.Background())
+	assert.ErrorIs(t, err, ErrNoDatabase)
+}
+
+func TestPing_WithDB_Success(t *testing.T) {
+	saveAndRestoreConn(t)
+
+	mockDB, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	t.Cleanup(func() { _ = mockDB.Close() })
+
+	db, err := gorm.Open(postgres.New(postgres.Config{Conn: mockDB}), &gorm.Config{})
+	assert.NoError(t, err)
+
+	connMu.Lock()
+	conn = DBConn{Instance: db}
+	connMu.Unlock()
+
+	mock.ExpectPing()
+	err = Ping(context.Background())
+	assert.NoError(t, err)
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

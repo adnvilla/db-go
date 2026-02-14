@@ -1,6 +1,7 @@
 package dbgo
 
 import (
+	"context"
 	"errors"
 	"sync"
 
@@ -43,6 +44,29 @@ func UseDefaultConnection() {
 	GetConnection = getConnection
 }
 
+func applyPoolConfig(db *gorm.DB, config Config) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	if sqlDB == nil {
+		return nil
+	}
+	if config.MaxOpenConns != nil {
+		sqlDB.SetMaxOpenConns(*config.MaxOpenConns)
+	}
+	if config.MaxIdleConns != nil {
+		sqlDB.SetMaxIdleConns(*config.MaxIdleConns)
+	}
+	if config.ConnMaxLifetime != nil {
+		sqlDB.SetConnMaxLifetime(*config.ConnMaxLifetime)
+	}
+	if config.ConnMaxIdleTime != nil {
+		sqlDB.SetConnMaxIdleTime(*config.ConnMaxIdleTime)
+	}
+	return nil
+}
+
 func getConnection(config Config) *DBConn {
 	if err := config.Validate(); err != nil {
 		return &DBConn{Error: err}
@@ -60,6 +84,13 @@ func getConnection(config Config) *DBConn {
 		// Principal or Write/Source
 		db, err := gorm.Open(postgres.Open(config.PrimaryDSN), cfg)
 		if err != nil {
+			connMu.Lock()
+			conn.Instance, conn.Error = db, err
+			connMu.Unlock()
+			return
+		}
+
+		if err := applyPoolConfig(db, config); err != nil {
 			connMu.Lock()
 			conn.Instance, conn.Error = db, err
 			connMu.Unlock()
@@ -123,6 +154,24 @@ func getConnection(config Config) *DBConn {
 	result := conn
 	connMu.RUnlock()
 	return &result
+}
+
+// Ping verifies that the database connection is alive, using the DB from ctx (or the default singleton).
+// It is intended for health checks (e.g. Kubernetes readiness/liveness probes).
+// Returns ErrNoDatabase when no connection is available, or the error from the underlying PingContext.
+func Ping(ctx context.Context) error {
+	db := GetFromContext(ctx)
+	if db == nil {
+		return ErrNoDatabase
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	if sqlDB == nil {
+		return ErrNoDatabase
+	}
+	return sqlDB.PingContext(ctx)
 }
 
 // ResetConnection closes the underlying database connection and resets the singleton,

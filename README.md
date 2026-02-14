@@ -6,9 +6,11 @@ A lightweight helper on top of [GORM](https://gorm.io/) focused on production-fr
 
 - **Singleton connection** – `GetConnection` constructs a single shared `*gorm.DB` (with prepared statement caching) via `sync.Once` and reuses it across the process. Thread-safe with `sync.RWMutex` protection.
 - **Read replicas out of the box** – provide one or more replica DSNs and the library configures `gorm.io/plugin/dbresolver` with a random read-balancing policy. Writes are always pinned to the primary.
-- **Context helpers** – store/retrieve the current connection from `context.Context`, with automatic fallback to the singleton and error logging when none is available.
-- **Transaction helper** – `WithTransaction` propagates context, forces writes to the primary, handles commit/rollback with panic recovery, reuses active transactions for nested calls, and logs rollback errors.
+- **Context helpers** – store/retrieve the current connection from `context.Context`, with automatic fallback to the singleton and error logging when none is available. `MustGetFromContext` panics when no DB is available for layers that assume the context was already initialized.
+- **Transaction helper** – `WithTransaction` propagates context, forces writes to the primary, handles commit/rollback with panic recovery, reuses active transactions for nested calls, and logs rollback errors. Repositories and usecases share the same transaction via context without passing `*gorm.DB` through every layer (**transaction-in-context** pattern).
 - **Datadog APM integration** – opt-in tracing via `dd-trace-go` with knobs for service name, analytics rate and custom error filtering. Transactions automatically create `"db.transaction"` spans when tracing is enabled.
+- **Connection pool tuning** – optional `MaxOpenConns`, `MaxIdleConns`, and `ConnMaxLifetime` in `Config` for production tuning of the underlying `*sql.DB` pool.
+- **Health check** – `Ping(ctx)` verifies the connection is alive (e.g. Kubernetes readiness/liveness probes), using the DB from context or the singleton.
 - **Active config introspection** – `GetActiveConfig` returns the `Config` used to establish the current connection, enabling runtime introspection.
 - **Clean resource management** – `ResetConnection` closes the underlying `*sql.DB` before resetting the singleton, preventing connection leaks.
 - **Examples & tooling** – Docker Compose, Make/Batch scripts and runnable examples that demonstrate tracing and clean architecture usage.
@@ -122,6 +124,10 @@ Stores a `*gorm.DB` in the context for later retrieval.
 
 Retrieves the DB from context. Falls back to the singleton connection if none is found. Logs an error and returns `nil` if no connection is available at all.
 
+#### `MustGetFromContext(ctx) *gorm.DB`
+
+Like `GetFromContext`, but panics if no DB is available. Use in layers that assume the context was already initialized with a DB by middleware or a usecase (e.g. repositories called inside `WithTransaction`).
+
 #### `WithContext(ctx, db) (context.Context, *gorm.DB)`
 
 Combines `db.WithContext(ctx)` and `SetFromContext` in a single call. Returns both the enriched context (with the DB stored in it) and the context-aware `*gorm.DB`.
@@ -154,9 +160,13 @@ Behavior:
 - **Rollback logging** – logs rollback errors via `logger.Error` instead of silently discarding them.
 - **Auto-tracing** – when Datadog tracing is enabled, automatically creates a `"db.transaction"` span with error tagging on failure.
 
+#### `Ping(ctx) error`
+
+Verifies the database connection is alive using the DB from context (or the default singleton). Intended for health checks (e.g. Kubernetes readiness/liveness). Returns `ErrNoDatabase` when no connection is available, or the error from the underlying `PingContext`.
+
 #### `ErrNoDatabase`
 
-Sentinel error returned by `WithTransaction` when no database connection is available.
+Sentinel error returned by `WithTransaction` and `Ping` when no database connection is available.
 
 ```go
 if errors.Is(err, dbgo.ErrNoDatabase) {
@@ -228,9 +238,12 @@ err := dbgo.WithTransaction(ctx, func(txCtx context.Context) error {
 type Config struct {
     PrimaryDSN           string
     ReplicasDSN          []string
+    MaxOpenConns         *int              // nil = driver default. Max open connections in the pool.
+    MaxIdleConns         *int              // nil = driver default. Max idle connections.
+    ConnMaxLifetime      *time.Duration    // nil = driver default. Max time a connection may be reused.
     EnableTracing        bool
     TracingServiceName   string
-    TracingAnalyticsRate *float64          // nil = unset, use pointer to distinguish from 0.0
+    TracingAnalyticsRate *float64           // nil = unset, use pointer to distinguish from 0.0
     TracingErrorCheck    func(error) bool
 }
 ```
