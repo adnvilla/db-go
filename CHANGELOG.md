@@ -1,3 +1,9 @@
+## [2.2.0](https://github.com/adnvilla/db-go/compare/v2.1.0...v2.2.0) (2026-02-14)
+
+### Features
+
+* add validation to Config and enhance tests ([#9](https://github.com/adnvilla/db-go/issues/9)) ([90700ff](https://github.com/adnvilla/db-go/commit/90700ff52aa4d8f9326aba370ac5de5bf3b54f52))
+
 ## [2.1.0](https://github.com/adnvilla/db-go/compare/v2.0.0...v2.1.0) (2026-02-08)
 
 ### Features
