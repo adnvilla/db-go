@@ -69,3 +69,38 @@ func TestSetFromContext_PreservesExistingValues(t *testing.T) {
 	assert.Equal(t, "existing-value", ctx.Value(otherKey{}))
 	assert.Equal(t, db, GetFromContext(ctx))
 }
+
+func TestMustGetFromContext_WhenDBInContext_ReturnsIt(t *testing.T) {
+	saveAndRestoreConn(t)
+	connMu.Lock()
+	conn = DBConn{}
+	connMu.Unlock()
+
+	db := &gorm.DB{}
+	ctx := SetFromContext(context.Background(), db)
+	result := MustGetFromContext(ctx)
+	assert.Same(t, db, result)
+}
+
+func TestMustGetFromContext_WhenGlobalConnSet_ReturnsIt(t *testing.T) {
+	saveAndRestoreConn(t)
+
+	globalDB := &gorm.DB{}
+	connMu.Lock()
+	conn = DBConn{Instance: globalDB}
+	connMu.Unlock()
+
+	result := MustGetFromContext(context.Background())
+	assert.Same(t, globalDB, result)
+}
+
+func TestMustGetFromContext_WhenNoDB_Panics(t *testing.T) {
+	saveAndRestoreConn(t)
+	connMu.Lock()
+	conn = DBConn{}
+	connMu.Unlock()
+
+	assert.PanicsWithValue(t, "dbgo: no database connection available in context or default connection", func() {
+		MustGetFromContext(context.Background())
+	})
+}

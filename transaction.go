@@ -39,10 +39,12 @@ func WithTransaction(ctx context.Context, fn UnitOfWork) (err error) {
 	if cfg.EnableTracing {
 		var span *tracer.Span
 		opts := []tracer.StartSpanOption{}
-		if cfg.TracingServiceName != "" {
-			opts = append(opts, tracer.ServiceName(cfg.TracingServiceName))
+		svc := cfg.TracingServiceName
+		if svc == "" {
+			svc = DefaultTracingServiceName
 		}
-		span, ctx = tracer.StartSpanFromContext(ctx, "db.transaction", opts...)
+		opts = append(opts, tracer.ServiceName(svc))
+		span, ctx = tracer.StartSpanFromContext(ctx, SpanNameTransaction, opts...)
 		defer func() {
 			if err != nil {
 				span.SetTag("error", true)

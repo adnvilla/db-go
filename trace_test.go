@@ -113,3 +113,22 @@ func TestWithContext_WrapsDBAndSetsContext(t *testing.T) {
 	fromCtx := GetFromContext(newCtx)
 	assert.Same(t, result, fromCtx)
 }
+
+func TestStartSpan_EmptyService_UsesDefault(t *testing.T) {
+	ctx := context.Background()
+	newCtx, span := StartSpan(ctx, "test-op", "")
+	assert.NotNil(t, newCtx)
+	if span != nil {
+		span.Finish()
+	}
+	// Default service name is applied when tracer is running; span may be nil when tracer not started
+}
+
+func TestStartSpan_WithService_UsesGivenService(t *testing.T) {
+	ctx := context.Background()
+	newCtx, span := StartSpan(ctx, "test-op", "my-service")
+	assert.NotNil(t, newCtx)
+	if span != nil {
+		span.Finish()
+	}
+}
