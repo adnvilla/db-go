@@ -7,7 +7,7 @@
 - **Module**: `github.com/adnvilla/db-go`
 - **Package**: `dbgo`
 - **Go version**: 1.24.0
-- **Current version**: 2.2.0
+- **Current version**: 1.0.2
 
 ## Architecture
 
