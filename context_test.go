@@ -30,7 +30,28 @@ func TestGetFromContext_FallsBackToGlobalConn(t *testing.T) {
 	connMu.Unlock()
 
 	result := GetFromContext(context.Background())
+	// globalDB has nil Statement (zero value), so WithContext is skipped and the
+	// instance is returned as-is. In production, conn.Instance always has a
+	// non-nil Statement (set by gorm.Open).
 	assert.Equal(t, globalDB, result)
+}
+
+func TestGetFromContext_SingtonFallback_PropagatesContext(t *testing.T) {
+	saveAndRestoreConn(t)
+
+	db, _ := newMockDB(t)
+	connMu.Lock()
+	conn = DBConn{Instance: db}
+	connMu.Unlock()
+
+	type testKey struct{}
+	ctx := context.WithValue(context.Background(), testKey{}, "sentinel")
+
+	result := GetFromContext(ctx)
+	assert.NotNil(t, result)
+	assert.NotNil(t, result.Statement)
+	assert.Equal(t, "sentinel", result.Statement.Context.Value(testKey{}),
+		"context passed to GetFromContext must be attached to the returned DB")
 }
 
 func TestGetFromContext_ReturnsNilWhenNothingAvailable(t *testing.T) {

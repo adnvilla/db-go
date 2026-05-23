@@ -98,7 +98,7 @@ func EnableTracing(db *gorm.DB, cfg Config) (*gorm.DB, error) {
 
 	plugin := gormtrace.NewTracePlugin(opts...)
 	if err := db.Use(plugin); err != nil {
-		return nil, err
+		return db, err
 	}
 
 	return db, nil

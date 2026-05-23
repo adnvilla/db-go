@@ -36,6 +36,11 @@ func TestUnitOfWork_Type(t *testing.T) {
 	assert.NoError(t, fn(context.Background()))
 }
 
+func TestIsTransaction_NilStatement(t *testing.T) {
+	// &gorm.DB{} zero-value has a nil Statement — must not panic.
+	assert.False(t, isTransaction(&gorm.DB{}))
+}
+
 func TestWithTransaction_Success(t *testing.T) {
 	saveAndRestoreConn(t)
 
