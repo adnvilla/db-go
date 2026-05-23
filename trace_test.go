@@ -94,6 +94,28 @@ func TestEnableTracing_WhenDisabled(t *testing.T) {
 	assert.Equal(t, db, result, "should return the same db when tracing is disabled")
 }
 
+func TestEnableTracing_WhenUsePluginFails_ReturnsOriginalDB(t *testing.T) {
+	mockDB, _, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer mockDB.Close()
+
+	db, err := gorm.Open(postgres.New(postgres.Config{Conn: mockDB}), &gorm.Config{})
+	assert.NoError(t, err)
+
+	cfg := Config{EnableTracing: true, TracingServiceName: "test-svc"}
+
+	// First call registers the plugin successfully.
+	db, err = EnableTracing(db, cfg)
+	assert.NoError(t, err)
+	assert.NotNil(t, db)
+
+	// Second call: plugin name already registered → db.Use returns an error.
+	result, err2 := EnableTracing(db, cfg)
+	assert.Error(t, err2, "expected error on duplicate plugin registration")
+	assert.NotNil(t, result, "db must not be nil even when EnableTracing fails")
+	assert.Same(t, db, result, "must return the original db, not nil")
+}
+
 func TestWithContext_WrapsDBAndSetsContext(t *testing.T) {
 	mockDB, _, err := sqlmock.New()
 	assert.NoError(t, err)

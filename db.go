@@ -76,13 +76,7 @@ func getConnection(config Config) *DBConn {
 		activeConfig = config
 		connMu.Unlock()
 
-		var err error
-		cfg := &gorm.Config{
-			PrepareStmt: true,
-		}
-
-		// Principal or Write/Source
-		db, err := gorm.Open(postgres.Open(config.PrimaryDSN), cfg)
+		db, err := gorm.Open(postgres.Open(config.PrimaryDSN), &gorm.Config{PrepareStmt: true})
 		if err != nil {
 			connMu.Lock()
 			conn.Instance, conn.Error = db, err
@@ -97,48 +91,25 @@ func getConnection(config Config) *DBConn {
 			return
 		}
 
-		if len(config.ReplicasDSN) == 0 {
-			// Apply Datadog tracing if enabled
-			if config.EnableTracing {
-				db, err = EnableTracing(db, config)
-				if err != nil {
-					// Option B: connection remains usable without tracing; caller gets both Instance and Error.
-					connMu.Lock()
-					conn.Instance, conn.Error = db, err
-					connMu.Unlock()
-					return
-				}
+		if len(config.ReplicasDSN) > 0 {
+			replicas := make([]gorm.Dialector, len(config.ReplicasDSN))
+			for i, r := range config.ReplicasDSN {
+				replicas[i] = postgres.Open(r)
 			}
-			connMu.Lock()
-			conn.Instance, conn.Error = db, err
-			connMu.Unlock()
-			return
+			if err = db.Use(dbresolver.Register(dbresolver.Config{
+				Replicas: replicas,
+				Policy:   dbresolver.RandomPolicy{},
+			})); err != nil {
+				connMu.Lock()
+				conn.Instance, conn.Error = db, err
+				connMu.Unlock()
+				return
+			}
 		}
 
-		replicas := make([]gorm.Dialector, len(config.ReplicasDSN))
-		for i, r := range config.ReplicasDSN {
-			replicas[i] = postgres.Open(r)
-		}
-
-		dbResolver := dbresolver.Config{
-			// Read Replicas
-			Replicas: replicas,
-			Policy:   dbresolver.RandomPolicy{},
-		}
-
-		err = db.Use(dbresolver.Register(dbResolver))
-		if err != nil {
-			connMu.Lock()
-			conn.Instance, conn.Error = db, err
-			connMu.Unlock()
-			return
-		}
-
-		// Apply Datadog tracing if enabled
 		if config.EnableTracing {
 			db, err = EnableTracing(db, config)
 			if err != nil {
-				// Option B: connection remains usable without tracing; caller gets both Instance and Error.
 				connMu.Lock()
 				conn.Instance, conn.Error = db, err
 				connMu.Unlock()
