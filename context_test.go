@@ -36,7 +36,7 @@ func TestGetFromContext_FallsBackToGlobalConn(t *testing.T) {
 	assert.Equal(t, globalDB, result)
 }
 
-func TestGetFromContext_SingtonFallback_PropagatesContext(t *testing.T) {
+func TestGetFromContext_SingletonFallback_PropagatesContext(t *testing.T) {
 	saveAndRestoreConn(t)
 
 	db, _ := newMockDB(t)
