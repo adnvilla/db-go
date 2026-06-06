@@ -28,6 +28,9 @@ func GetFromContext(ctx context.Context) *gorm.DB {
 	instance := conn.Instance
 	connMu.RUnlock()
 	if instance != nil {
+		if instance.Statement != nil {
+			return instance.WithContext(ctx)
+		}
 		return instance
 	}
 
@@ -46,6 +49,8 @@ func MustGetFromContext(ctx context.Context) *gorm.DB {
 	return db
 }
 
+// SetFromContext stores the given *gorm.DB in ctx and returns the updated context.
+// Retrieve it later with GetFromContext or MustGetFromContext.
 func SetFromContext(ctx context.Context, db *gorm.DB) context.Context {
 	return context.WithValue(ctx, dbContextKey, db)
 }

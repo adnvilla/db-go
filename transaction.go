@@ -17,6 +17,9 @@ var ErrNoDatabase = errors.New("dbgo: no database connection available")
 type UnitOfWork func(ctx context.Context) error
 
 func isTransaction(db *gorm.DB) bool {
+	if db == nil || db.Statement == nil {
+		return false
+	}
 	_, ok := db.Statement.ConnPool.(gorm.TxCommitter)
 	return ok
 }
@@ -38,13 +41,7 @@ func WithTransaction(ctx context.Context, fn UnitOfWork) (err error) {
 	cfg := GetActiveConfig()
 	if cfg.EnableTracing {
 		var span *tracer.Span
-		opts := []tracer.StartSpanOption{}
-		svc := cfg.TracingServiceName
-		if svc == "" {
-			svc = DefaultTracingServiceName
-		}
-		opts = append(opts, tracer.ServiceName(svc))
-		span, ctx = tracer.StartSpanFromContext(ctx, SpanNameTransaction, opts...)
+		ctx, span = StartSpan(ctx, SpanNameTransaction, cfg.TracingServiceName)
 		defer func() {
 			if err != nil {
 				span.SetTag("error", true)
