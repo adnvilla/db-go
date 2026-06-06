@@ -1,3 +1,9 @@
+## [2.2.1](https://github.com/adnvilla/db-go/compare/v2.2.0...v2.2.1) (2026-06-06)
+
+### Bug Fixes
+
+* resolve 3 bugs and 3 code quality issues ([#12](https://github.com/adnvilla/db-go/issues/12)) ([c66df8e](https://github.com/adnvilla/db-go/commit/c66df8e71e6a4aacadddca1485030ab71bb41910))
+
 ## [2.2.0](https://github.com/adnvilla/db-go/compare/v2.1.0...v2.2.0) (2026-02-14)
 
 ### Features
